@@ -1,166 +1,171 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { MapPin, Briefcase, DollarSign, Calendar, Bookmark, BookmarkCheck, ExternalLink, CheckCircle2, Building2 } from 'lucide-react';
 import { Card } from '../common/Card';
-import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
-import { FitScoreBadge } from './FitScoreBadge';
-import { CompanyLogo } from './CompanyLogo';
-import { useProfile } from '../../context/ProfileContext';
+import { Button } from '../common/Button';
+import { MapPin, Calendar, Bookmark, BookmarkCheck, ExternalLink, Sparkles } from 'lucide-react';
 import { useSavedJobs } from '../../context/SavedJobsContext';
-import { calculateFresherFitScore } from '../../utils/jobMatcher';
 
-export const JobCard = ({ job, onApply }) => {
-  const navigate = useNavigate();
-  const { profile } = useProfile();
+export const JobCard = ({
+  job = {
+    id: '1',
+    title: 'Software Developer',
+    company: 'Tech Company',
+    location: 'Location not listed',
+    experienceLevel: 'Entry Level',
+    jobType: 'Full-time',
+    skills: [],
+    postedDate: 'Today',
+    applicationUrl: null,
+    source: 'The Muse'
+  },
+  onViewDetails
+}) => {
   const { isJobSaved, toggleSaveJob } = useSavedJobs();
-
   const saved = isJobSaved(job.id);
-  const fitData = calculateFresherFitScore(profile, job);
+
+  const getInitial = (name) => (name ? name.charAt(0).toUpperCase() : 'C');
+
+  // Dynamic vibrant company avatar gradient
+  const getGradient = (name = '') => {
+    const gradients = [
+      'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+      'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+      'linear-gradient(135deg, #0284c7 0%, #3b82f6 100%)',
+      'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
+      'linear-gradient(135deg, #db2777 0%, #e11d48 100%)'
+    ];
+    let hash = 0;
+    for (let i = 0; i < (name || '').length; i++) hash += name.charCodeAt(i);
+    return gradients[Math.abs(hash) % gradients.length];
+  };
 
   return (
-    <Card hover className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+    <Card hover style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header Info */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-          <CompanyLogo companyName={job.company} logoUrl={job.companyLogo} size={52} />
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--spacing-md)' }}>
+          {/* Logo Area (Company Initials Avatar Fallback) */}
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: 'var(--radius-md)',
+            background: getGradient(job.company),
+            color: '#ffffff',
+            fontWeight: 800,
+            fontSize: 'var(--font-size-lg)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            {getInitial(job.company)}
+          </div>
 
           <div>
             <h3
-              onClick={() => navigate(`/jobs/${job.id}`, { state: { job } })}
+              onClick={() => onViewDetails && onViewDetails(job.id)}
               style={{
-                fontSize: '1.125rem',
+                fontSize: 'var(--font-size-md)',
+                fontWeight: 700,
                 cursor: 'pointer',
-                color: 'var(--text-main)',
-                transition: 'color var(--transition-fast)',
+                color: 'var(--color-text)',
                 lineHeight: '1.3'
               }}
-              onMouseEnter={(e) => e.target.style.color = 'var(--color-primary)'}
-              onMouseLeave={(e) => e.target.style.color = 'var(--text-main)'}
             >
               {job.title}
             </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: 600, marginTop: '2px' }}>
+            <p style={{ color: 'var(--color-primary)', fontSize: 'var(--font-size-sm)', fontWeight: 600, marginTop: '2px' }}>
               {job.company}
             </p>
           </div>
         </div>
 
-        {/* Bookmark Save Button */}
         <button
           onClick={() => toggleSaveJob(job)}
-          className="btn btn-secondary btn-icon"
           style={{
-            borderRadius: 'var(--radius-full)',
-            color: saved ? 'var(--color-warning)' : 'var(--text-subtle)',
-            backgroundColor: saved ? 'var(--color-warning-bg)' : undefined,
-            flexShrink: 0
+            color: saved ? 'var(--color-warning)' : 'var(--color-text-subtle)',
+            padding: '6px',
+            borderRadius: 'var(--radius-sm)',
+            cursor: 'pointer',
+            backgroundColor: saved ? 'var(--badge-amber-bg)' : 'transparent',
+            border: saved ? '1px solid #fcd34d' : 'none',
+            transition: 'all var(--transition-fast)'
           }}
-          title={saved ? 'Remove from Saved Jobs' : 'Save Job to Shortlist'}
+          title={saved ? 'Unsave Opportunity' : 'Save Opportunity'}
         >
-          {saved ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+          {saved ? <BookmarkCheck size={20} /> : <Bookmark size={18} />}
         </button>
       </div>
 
-      {/* Badges & Fit Score Pill */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
-        <FitScoreBadge fitData={fitData} />
-
-        {job.isFresherFriendly && (
-          <Badge variant="success" icon={CheckCircle2}>Fresher Friendly</Badge>
+      {/* Badges */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--spacing-xs)', marginBottom: 'var(--spacing-md)', alignItems: 'center' }}>
+        <Badge variant="success">{job.experienceLevel || 'Entry Level'}</Badge>
+        {job.category && <Badge variant="primary">{job.category}</Badge>}
+        {job.source && (
+          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-subtle)', marginLeft: 'auto' }}>
+            Source: <a href={job.applicationUrl || 'https://www.themuse.com'} target="_blank" rel="noreferrer" style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 600 }}>{job.source}</a>
+          </span>
         )}
-
-        {job.jobType && <Badge variant="primary">{job.jobType}</Badge>}
-        {job.workMode && <Badge variant="info">{job.workMode}</Badge>}
       </div>
 
-      {/* Details Meta Grid */}
+      {/* Location & Metadata */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-        gap: '0.5rem 0.75rem',
-        fontSize: '0.8125rem',
-        color: 'var(--text-muted)',
-        marginBottom: '1rem',
-        padding: '0.75rem 0.875rem',
-        backgroundColor: 'var(--bg-surface-elevated)',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 'var(--spacing-md)',
+        fontSize: 'var(--font-size-xs)',
+        color: 'var(--color-text-muted)',
+        marginBottom: 'var(--spacing-md)',
+        padding: 'var(--spacing-sm) var(--spacing-md)',
+        backgroundColor: 'var(--color-surface-elevated)',
         borderRadius: 'var(--radius-md)',
-        border: '1px solid var(--border-color)'
+        border: '1px solid var(--color-border)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }} title="Job Location">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
           <MapPin size={14} style={{ color: 'var(--color-primary)' }} />
           <span>{job.location}</span>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }} title="Salary Information">
-          <DollarSign size={14} style={{ color: job.salary === 'Salary not disclosed' ? 'var(--text-subtle)' : 'var(--color-success)' }} />
-          <span style={{ fontStyle: job.salary === 'Salary not disclosed' ? 'italic' : 'normal' }}>
-            {job.salary}
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }} title="Experience Level">
-          <Briefcase size={14} style={{ color: 'var(--text-subtle)' }} />
-          <span>{job.experienceLevel}</span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }} title="Posted Date">
-          <Calendar size={14} style={{ color: 'var(--text-subtle)' }} />
-          <span>Posted {job.postedDate}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
+          <Calendar size={14} style={{ color: 'var(--color-info)' }} />
+          <span>{job.postedDate}</span>
         </div>
       </div>
 
-      {/* Description Snippet */}
-      <p style={{
-        fontSize: '0.875rem',
-        color: 'var(--text-muted)',
-        lineHeight: 1.5,
-        marginBottom: '1.25rem',
-        display: '-webkit-box',
-        WebkitLineClamp: 3,
-        WebkitBoxOrient: 'vertical',
-        overflow: 'hidden'
-      }}>
-        {job.description}
-      </p>
-
       {/* Skills Pills */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '1.5rem', marginTop: 'auto' }}>
-        {(job.skills || []).slice(0, 5).map((skill, sIdx) => (
-          <span key={sIdx} style={{
-            fontSize: '0.75rem',
-            padding: '2px 8px',
-            backgroundColor: 'var(--bg-app)',
-            color: 'var(--text-muted)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-color)'
-          }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: 'var(--spacing-lg)', marginTop: 'auto' }}>
+        {(job.skills || []).slice(0, 4).map((skill, idx) => (
+          <span
+            key={idx}
+            style={{
+              fontSize: 'var(--font-size-xs)',
+              fontWeight: 600,
+              padding: '3px 10px',
+              backgroundColor: 'var(--badge-blue-bg)',
+              color: 'var(--badge-blue-text)',
+              borderRadius: 'var(--radius-full)',
+              border: '1px solid #bae6fd'
+            }}
+          >
             {skill}
           </span>
         ))}
       </div>
 
-      {/* Footer Action Buttons */}
-      <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-        <Button
-          variant="secondary"
-          size="sm"
-          style={{ flex: 1 }}
-          onClick={() => navigate(`/jobs/${job.id}`, { state: { job } })}
-        >
-          Job Details
+      {/* Action Footer */}
+      <div style={{ display: 'flex', gap: 'var(--spacing-sm)', width: '100%' }}>
+        <Button variant="secondary" size="sm" style={{ flex: 1 }} onClick={() => onViewDetails && onViewDetails(job.id)}>
+          Details
         </Button>
         <Button
           variant="primary"
           size="sm"
           icon={ExternalLink}
-          style={{ flex: 1 }}
-          onClick={() => {
-            if (onApply) onApply(job);
-            else window.open(job.applyUrl, '_blank');
-          }}
+          disabled={!job.applicationUrl}
+          style={{ flex: 1, background: 'var(--gradient-primary)', border: 'none' }}
+          onClick={() => job.applicationUrl && window.open(job.applicationUrl, '_blank', 'noopener,noreferrer')}
         >
-          Apply Now
+          {job.applicationUrl ? 'Apply Now' : 'Link N/A'}
         </Button>
       </div>
     </Card>

@@ -1,163 +1,112 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useAuthContext } from './AuthContext';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { getStoredItem, setStoredItem, removeStoredItem, STORAGE_KEYS } from '../utils/storage';
 
 const ApplicationContext = createContext(null);
 
-export const APPLICATION_STAGES = [
-  { id: 'Saved', label: 'Saved', color: 'var(--stage-saved)' },
-  { id: 'Applied', label: 'Applied', color: 'var(--stage-applied)' },
-  { id: 'Screening', label: 'Screening', color: 'var(--stage-screening)' },
-  { id: 'Assessment', label: 'Assessment', color: 'var(--stage-assessment)' },
-  { id: 'Interview', label: 'Interview', color: 'var(--stage-interview)' },
-  { id: 'Offer', label: 'Offer 🎉', color: 'var(--stage-offer)' },
-  { id: 'Rejected', label: 'Rejected', color: 'var(--stage-rejected)' }
-];
+export const APPLICATION_STATUSES = ['Saved', 'Applied', 'Interview', 'Rejected', 'Selected'];
 
-const defaultApplications = [
-  {
-    id: 'app-201',
-    jobId: 'job-101',
-    title: 'Junior React Developer',
-    company: 'TechCraft Solutions',
-    companyLogo: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=150',
-    location: 'Bengaluru, India',
-    status: 'Interview',
-    appliedDate: '2026-08-05',
-    resumeVersion: 'Frontend Developer Resume v2',
-    recruiterName: 'Priya Mehta',
-    recruiterEmail: 'priya@techcraft.example.com',
-    followUpDate: '2026-08-18',
-    notes: 'Technical round scheduled focusing on React hooks, state management, and virtual DOM concepts.'
-  },
-  {
-    id: 'app-202',
-    jobId: 'job-102',
-    title: 'Software Engineer Trainee',
-    company: 'Nexus Innovations',
-    companyLogo: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&q=80&w=150',
-    location: 'Hyderabad, India',
-    status: 'Assessment',
-    appliedDate: '2026-08-10',
-    resumeVersion: 'General Fresher Resume',
-    recruiterName: 'Anil Kumar',
-    recruiterEmail: 'careers@nexus.example.com',
-    followUpDate: '2026-08-19',
-    notes: 'Completed HackerRank online coding assessment. Awaiting results.'
-  },
-  {
-    id: 'app-203',
-    jobId: 'job-103',
-    title: 'Frontend Development Intern',
-    company: 'CloudPulse Systems',
-    companyLogo: 'https://images.unsplash.com/photo-1572021335469-31706a17aaef?auto=format&fit=crop&q=80&w=150',
-    location: 'Remote',
-    status: 'Screening',
-    appliedDate: '2026-08-12',
-    resumeVersion: 'Frontend Developer Resume v2',
-    recruiterName: 'Sarah Jenkins',
-    recruiterEmail: 'hr@cloudpulse.example.com',
-    followUpDate: '2026-08-20',
-    notes: 'HR phone screening completed. Submitted GitHub portfolio links.'
-  }
-];
-
-export const ApplicationProvider = ({ children }) => {
-  const { currentUser } = useAuthContext();
-  const userId = currentUser?.id || 'guest';
-  const storageKey = `jt_applications_${userId}`;
-
-  const [applications, setApplicationsState] = useState(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) return JSON.parse(saved);
-    } catch (err) {
-      console.error('Error loading applications:', err);
-    }
-    return defaultApplications;
+export function ApplicationProvider({ children }) {
+  const [applications, setApplications] = useState(() => {
+    const data = getStoredItem(STORAGE_KEYS.APPLICATIONS, []);
+    return Array.isArray(data) ? data.filter(app => app && app.jobId) : [];
   });
 
-  useEffect(() => {
-    if (userId) {
-      try {
-        const saved = localStorage.getItem(storageKey);
-        if (saved) {
-          setApplicationsState(JSON.parse(saved));
-        } else {
-          setApplicationsState(defaultApplications);
-          localStorage.setItem(storageKey, JSON.stringify(defaultApplications));
-        }
-      } catch (err) {
-        console.error('Error syncing applications:', err);
-      }
-    }
-  }, [userId]);
+  const getApplicationStatus = useCallback((jobId) => {
+    if (!jobId) return null;
+    const app = applications.find(a => String(a.jobId) === String(jobId));
+    return app ? app.status : null;
+  }, [applications]);
 
-  const setApplications = (updater) => {
-    setApplicationsState(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(next));
-      } catch (err) {
-        console.error('Error saving applications:', err);
+  const markAsApplied = useCallback((job, initialStatus = 'Applied') => {
+    if (!job || (!job.id && !job.jobId)) return;
+
+    const id = String(job.id || job.jobId);
+
+    setApplications(prev => {
+      const existingIndex = prev.findIndex(a => String(a.jobId) === id);
+      const now = new Date().toISOString();
+
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          status: initialStatus,
+          updatedAt: now
+        };
+        setStoredItem(STORAGE_KEYS.APPLICATIONS, updated);
+        return updated;
       }
-      return next;
+
+      const newApp = {
+        jobId: id,
+        title: job.title,
+        company: job.company,
+        applicationUrl: job.applicationUrl || '',
+        status: initialStatus,
+        appliedAt: now,
+        updatedAt: now
+      };
+
+      const updated = [newApp, ...prev];
+      setStoredItem(STORAGE_KEYS.APPLICATIONS, updated);
+      return updated;
     });
-  };
+  }, []);
 
-  const addApplication = (job, status = 'Applied', extra = {}) => {
-    const newApp = {
-      id: `app-${Date.now()}`,
-      jobId: job.id,
-      title: job.title,
-      company: job.company,
-      companyLogo: job.companyLogo,
-      location: job.location,
-      status: status,
-      appliedDate: new Date().toISOString().split('T')[0],
-      resumeVersion: extra.resumeVersion || 'General Fresher Resume',
-      recruiterName: extra.recruiterName || '',
-      recruiterEmail: extra.recruiterEmail || '',
-      followUpDate: extra.followUpDate || '',
-      notes: extra.notes || 'Application logged in JobTrack.'
-    };
-    setApplications(prev => [newApp, ...prev]);
-  };
+  const updateApplicationStatus = useCallback((jobId, newStatus) => {
+    if (!jobId || !APPLICATION_STATUSES.includes(newStatus)) return;
 
-  const updateApplicationStatus = (id, newStatus) => {
-    setApplications(prev => prev.map(app =>
-      app.id === id ? { ...app, status: newStatus } : app
-    ));
-  };
+    setApplications(prev => {
+      const updated = prev.map(app => {
+        if (String(app.jobId) === String(jobId)) {
+          return {
+            ...app,
+            status: newStatus,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return app;
+      });
+      setStoredItem(STORAGE_KEYS.APPLICATIONS, updated);
+      return updated;
+    });
+  }, []);
 
-  const updateApplicationDetails = (id, data) => {
-    setApplications(prev => prev.map(app =>
-      app.id === id ? { ...app, ...data } : app
-    ));
-  };
+  const removeApplication = useCallback((jobId) => {
+    if (!jobId) return;
 
-  const deleteApplication = (id) => {
-    setApplications(prev => prev.filter(app => app.id !== id));
+    setApplications(prev => {
+      const updated = prev.filter(app => String(app.jobId) !== String(jobId));
+      setStoredItem(STORAGE_KEYS.APPLICATIONS, updated);
+      return updated;
+    });
+  }, []);
+
+  const clearApplications = useCallback(() => {
+    setApplications([]);
+    removeStoredItem(STORAGE_KEYS.APPLICATIONS);
+  }, []);
+
+  const value = {
+    applications,
+    markAsApplied,
+    updateApplicationStatus,
+    removeApplication,
+    getApplicationStatus,
+    clearApplications
   };
 
   return (
-    <ApplicationContext.Provider
-      value={{
-        applications,
-        addApplication,
-        updateApplicationStatus,
-        updateApplicationDetails,
-        deleteApplication
-      }}
-    >
+    <ApplicationContext.Provider value={value}>
       {children}
     </ApplicationContext.Provider>
   );
-};
+}
 
-export const useApplications = () => {
+export function useApplications() {
   const context = useContext(ApplicationContext);
   if (!context) {
     throw new Error('useApplications must be used within an ApplicationProvider');
   }
   return context;
-};
+}

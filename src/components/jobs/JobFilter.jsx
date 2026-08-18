@@ -1,95 +1,177 @@
-import React from 'react';
-import { Filter, RotateCcw, MapPin, Briefcase, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { Card } from '../common/Card';
 import { Button } from '../common/Button';
+import { Filter, RotateCcw, X, SlidersHorizontal } from 'lucide-react';
 
 export const JobFilter = ({
-  filters,
+  filters = {},
   onFilterChange,
-  onReset,
-  totalResults = 0,
-  source = ''
+  onReset
 }) => {
-  return (
-    <div className="jt-card" style={{ padding: '1.25rem', marginBottom: '2rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Filter size={18} style={{ color: 'var(--color-primary)' }} />
-          <h3 style={{ fontSize: '1rem' }}>Fresher Job Filters</h3>
-          {source && (
-            <span className="badge badge-info" style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>
-              Source: {source}
-            </span>
-          )}
+  const [mobileModalOpen, setMobileModalOpen] = useState(false);
+
+  const filterContent = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+      {/* Quick Fresher Filter Buttons */}
+      <div>
+        <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px', fontWeight: 600 }}>
+          QUICK FRESHER FILTERS
+        </label>
+        <div style={{ display: 'flex', gap: 'var(--spacing-xs)', flexWrap: 'wrap' }}>
+          {[
+            { label: 'Entry Level', value: 'Entry Level' },
+            { label: 'Internships', value: 'Internship' },
+            { label: 'Software Eng', category: 'Software Engineering' },
+            { label: 'Data Science', category: 'Data Science & Analytics' },
+            { label: 'UX & Design', category: 'UX & Design' },
+            { label: 'AI & ML', category: 'AI & Machine Learning' }
+          ].map((item, idx) => {
+            const isActive = item.value
+              ? filters.level === item.value
+              : filters.category === item.category;
+
+            return (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  if (item.value) onFilterChange('level', item.value);
+                  if (item.category) onFilterChange('category', item.category);
+                }}
+                style={{
+                  fontSize: 'var(--font-size-xs)',
+                  padding: '4px 12px',
+                  borderRadius: 'var(--radius-full)',
+                  fontWeight: 600,
+                  backgroundColor: isActive ? 'var(--color-primary)' : 'var(--color-surface-elevated)',
+                  color: isActive ? '#ffffff' : 'var(--color-text-muted)',
+                  border: '1px solid',
+                  borderColor: isActive ? 'var(--color-primary)' : 'var(--color-border)',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)'
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
         </div>
-        <button
-          onClick={onReset}
-          className="btn btn-secondary btn-sm"
-          style={{ gap: '0.35rem', fontSize: '0.75rem' }}
-        >
-          <RotateCcw size={14} /> Clear Filters
-        </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-        {/* Fresher Category / Experience */}
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Fresher Category</label>
+      {/* Main Filter Dropdowns Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--spacing-md)' }}>
+        <div>
+          <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
+            Experience Level
+          </label>
           <select
-            className="select"
-            value={filters.experience}
-            onChange={(e) => onFilterChange('experience', e.target.value)}
+            value={filters.level || 'all'}
+            onChange={(e) => onFilterChange('level', e.target.value)}
+            style={{ width: '100%' }}
           >
-            <option value="all">All Fresher Roles</option>
-            <option value="fresher">Freshers (0 years)</option>
-            <option value="trainee">Trainee Programs</option>
-            <option value="intern">Internships</option>
-          </select>
-        </div>
-
-        {/* Job Type */}
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Job Type</label>
-          <select
-            className="select"
-            value={filters.jobType}
-            onChange={(e) => onFilterChange('jobType', e.target.value)}
-          >
-            <option value="all">All Job Types</option>
-            <option value="Full-time">Full-time</option>
+            <option value="all">All Experience Levels</option>
+            <option value="Entry Level">Entry Level</option>
             <option value="Internship">Internship</option>
-            <option value="Trainee">Trainee</option>
-            <option value="Graduate Program">Graduate Program</option>
+            <option value="Mid Level">Mid Level</option>
+            <option value="Senior Level">Senior Level</option>
           </select>
         </div>
 
-        {/* Work Mode */}
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Work Mode</label>
+        <div>
+          <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
+            Job Category
+          </label>
           <select
-            className="select"
-            value={filters.workMode}
-            onChange={(e) => onFilterChange('workMode', e.target.value)}
+            value={filters.category || ''}
+            onChange={(e) => onFilterChange('category', e.target.value)}
+            style={{ width: '100%' }}
           >
-            <option value="all">All Work Modes</option>
-            <option value="Remote">Remote</option>
-            <option value="Hybrid">Hybrid</option>
-            <option value="On-site">On-site</option>
+            <option value="">All Categories</option>
+            <option value="Software Engineering">Software Engineering</option>
+            <option value="Data Science & Analytics">Data Science & Analytics</option>
+            <option value="UX & Design">UX & Design</option>
+            <option value="IT & System Admin">IT & System Admin</option>
+            <option value="AI & Machine Learning">AI & Machine Learning</option>
+            <option value="QA & Testing">QA & Testing</option>
           </select>
         </div>
 
-        {/* Sort By */}
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Sort Listings By</label>
+        <div>
+          <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
+            Sort Results
+          </label>
           <select
-            className="select"
-            value={filters.sortBy}
+            value={filters.sortBy || 'newest'}
             onChange={(e) => onFilterChange('sortBy', e.target.value)}
+            style={{ width: '100%' }}
           >
             <option value="newest">Newest First</option>
-            <option value="relevance">Relevance / Fit Score</option>
+            <option value="oldest">Oldest First</option>
           </select>
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Filter Panel */}
+      <Card className="desktop-filters" style={{ marginBottom: 'var(--spacing-xl)', padding: 'var(--spacing-md)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-md)', borderBottom: '1px solid var(--color-border)', paddingBottom: 'var(--spacing-sm)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
+            <Filter size={16} style={{ color: 'var(--color-primary)' }} />
+            <span>Refine Fresher Opportunities</span>
+          </div>
+          <Button variant="ghost" size="sm" icon={RotateCcw} onClick={onReset}>
+            Clear Filters
+          </Button>
+        </div>
+        {filterContent}
+      </Card>
+
+      {/* Mobile Filter Toggle Button & Drawer */}
+      <div className="mobile-filter-trigger" style={{ marginBottom: 'var(--spacing-md)', display: 'none' }}>
+        <Button variant="secondary" icon={SlidersHorizontal} onClick={() => setMobileModalOpen(true)} style={{ width: '100%' }}>
+          Filter Opportunities
+        </Button>
+      </div>
+
+      {mobileModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          zIndex: 1000,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-end'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--color-surface)',
+            width: '100%',
+            maxHeight: '90vh',
+            borderTopLeftRadius: 'var(--radius-lg)',
+            borderTopRightRadius: 'var(--radius-lg)',
+            padding: 'var(--spacing-lg)',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-md)', borderBottom: '1px solid var(--color-border)', paddingBottom: 'var(--spacing-sm)' }}>
+              <h3 style={{ fontSize: 'var(--font-size-md)' }}>Filter Opportunities</h3>
+              <button onClick={() => setMobileModalOpen(false)} style={{ color: 'var(--color-text-muted)' }}>
+                <X size={20} />
+              </button>
+            </div>
+            {filterContent}
+            <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-lg)' }}>
+              <Button variant="secondary" onClick={onReset} style={{ flex: 1 }}>Clear</Button>
+              <Button variant="primary" onClick={() => setMobileModalOpen(false)} style={{ flex: 1 }}>Apply Filters</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

@@ -1,233 +1,232 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search, MapPin, Sparkles, AlertCircle, Briefcase, ChevronLeft, ChevronRight } from 'lucide-react';
-import { JobCard } from '../../components/jobs/JobCard';
-import { JobFilter } from '../../components/jobs/JobFilter';
-import { Skeleton } from '../../components/common/Skeleton';
+import React from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Container } from '../../components/common/Container';
+import { SectionHeader } from '../../components/common/SectionHeader';
+import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
-import { fetchJobs } from '../../services/jobService';
+import { EmptyState } from '../../components/common/EmptyState';
+import { JobSearch } from '../../components/jobs/JobSearch';
+import { JobFilter } from '../../components/jobs/JobFilter';
+import { ActiveFilters } from '../../components/jobs/ActiveFilters';
+import { JobResultCount } from '../../components/jobs/JobResultCount';
+import { Pagination } from '../../components/jobs/Pagination';
+import { JobCard } from '../../components/jobs/JobCard';
+import { useJobs } from '../../hooks/useJobs';
+import { AlertTriangle, Briefcase } from 'lucide-react';
 
 export const Jobs = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialQuery = searchParams.get('q') || '';
-  const initialPage = parseInt(searchParams.get('page') || '1', 10);
 
-  const [searchQuery, setSearchQuery] = useState(initialQuery);
-  const [locationInput, setLocationInput] = useState('India');
-  const [page, setPage] = useState(initialPage);
+  // Read active parameters directly from URL query parameters (Single Source of Truth)
+  const searchQuery = searchParams.get('search') || '';
+  const location = searchParams.get('location') || '';
+  const category = searchParams.get('category') || '';
+  const level = searchParams.get('level') || 'Entry Level';
+  const company = searchParams.get('company') || '';
+  const sortBy = searchParams.get('sortBy') || 'newest';
+  const page = parseInt(searchParams.get('page') || '1', 10);
 
-  const [filters, setFilters] = useState({
-    experience: 'all',
-    jobType: 'all',
-    workMode: 'all',
-    sortBy: 'newest'
-  });
+  const activeParams = {
+    search: searchQuery,
+    location,
+    category,
+    level,
+    company,
+    sortBy,
+    page
+  };
 
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [dataSource, setDataSource] = useState('');
-  const [totalCount, setTotalCount] = useState(0);
+  const filters = {
+    level,
+    category,
+    location,
+    company,
+    sortBy
+  };
 
-  useEffect(() => {
-    const loadJobs = async () => {
-      setLoading(true);
-      try {
-        const result = await fetchJobs({
-          query: searchQuery,
-          location: locationInput,
-          experience: filters.experience,
-          jobType: filters.jobType,
-          workMode: filters.workMode,
-          sortBy: filters.sortBy,
-          page: page
-        });
-        setJobs(result.jobs || []);
-        setTotalCount(result.total || (result.jobs ? result.jobs.length : 0));
-        setDataSource(result.source || 'Jooble REST API');
-      } catch (err) {
-        console.error('Failed to fetch jobs:', err);
-      } finally {
-        setLoading(false);
+  // Fetch real job opportunities driven by active URL parameters
+  const {
+    jobs,
+    loading,
+    error,
+    pageCount,
+    totalCount,
+    refetch
+  } = useJobs(activeParams);
+
+  // Helper to update URL search parameters
+  const updateUrlParams = (newParams) => {
+    const next = new URLSearchParams(searchParams);
+
+    Object.entries(newParams).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && String(val).trim() !== '' && val !== 'all') {
+        next.set(key, String(val).trim());
+      } else {
+        next.delete(key);
       }
-    };
+    });
 
-    const timer = setTimeout(loadJobs, 200);
-    return () => clearTimeout(timer);
-  }, [searchQuery, locationInput, filters, page]);
+    setSearchParams(next);
+  };
+
+  const handleSearchSubmit = ({ search, location: loc }) => {
+    updateUrlParams({
+      search: search !== undefined ? search : searchQuery,
+      location: loc !== undefined ? loc : location,
+      page: 1
+    });
+  };
 
   const handleFilterChange = (key, value) => {
-    setPage(1);
-    setFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  const handleResetFilters = () => {
-    setSearchQuery('');
-    setLocationInput('India');
-    setPage(1);
-    setFilters({
-      experience: 'all',
-      jobType: 'all',
-      workMode: 'all',
-      sortBy: 'newest'
+    updateUrlParams({
+      [key]: value,
+      page: 1
     });
-    setSearchParams({});
   };
 
-  const handleSearchForm = (e) => {
-    e.preventDefault();
-    setPage(1);
-    setSearchParams(searchQuery ? { q: searchQuery } : {});
-  };
-
-  const handleNextPage = () => {
-    const nextP = page + 1;
-    setPage(nextP);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handlePrevPage = () => {
-    if (page > 1) {
-      const prevP = page - 1;
-      setPage(prevP);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleRemoveFilter = (key) => {
+    if (key === 'search') {
+      updateUrlParams({ search: '', page: 1 });
+    } else {
+      updateUrlParams({ [key]: key === 'level' ? 'all' : '', page: 1 });
     }
   };
 
-  const startResultIdx = (page - 1) * 20 + 1;
-  const endResultIdx = Math.min(page * 20, totalCount || jobs.length);
+  const handleClearAllFilters = () => {
+    setSearchParams({});
+  };
+
+  const handlePageChange = (newPage) => {
+    updateUrlParams({ page: newPage });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleViewDetails = (id) => {
+    navigate(`/jobs/${id}`);
+  };
 
   return (
-    <div className="page-container fade-in">
-      {/* Page Header */}
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.875rem', marginBottom: '0.5rem' }}>Discover Fresher Jobs 💼</h1>
-        <p style={{ color: 'var(--text-muted)' }}>
-          Explore entry-level tech roles powered by live <strong>Jooble REST API</strong> search & smart profile matching.
-        </p>
-      </div>
+    <Container>
+      {/* Header */}
+      <SectionHeader
+        title="Discover IT Fresher Jobs"
+        subtitle="Explore live entry-level & internship roles powered directly by Jobicy IT Jobs API v2"
+        badgeText="Jobicy IT Jobs API"
+      />
 
-      {/* Main Search Bar Controls */}
-      <form onSubmit={handleSearchForm} style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)' }} />
-            <input
-              type="text"
-              className="input"
-              placeholder="Search by job title, skill, or keyword (e.g. React, Trainee)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: '40px' }}
-            />
-          </div>
+      {/* Prominent Search UI Bar */}
+      <JobSearch
+        initialKeyword={searchQuery}
+        initialLocation={location}
+        onSearch={handleSearchSubmit}
+      />
 
-          <div style={{ position: 'relative' }}>
-            <MapPin size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)' }} />
-            <input
-              type="text"
-              className="input"
-              placeholder="Location e.g. Bengaluru, Remote, India..."
-              value={locationInput}
-              onChange={(e) => setLocationInput(e.target.value)}
-              style={{ paddingLeft: '40px' }}
-            />
-          </div>
-
-          <Button type="submit" variant="primary" icon={Search} style={{ height: '42px' }}>
-            Search Fresher Jobs
-          </Button>
-        </div>
-      </form>
-
-      {/* Filter Component Bar */}
+      {/* Experience & Category Filters */}
       <JobFilter
         filters={filters}
         onFilterChange={handleFilterChange}
-        onReset={handleResetFilters}
-        totalResults={totalCount}
-        source={dataSource}
+        onReset={handleClearAllFilters}
       />
 
-      {/* Results Header Count */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        {loading ? (
-          <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-            Finding fresher opportunities...
-          </div>
-        ) : jobs.length > 0 ? (
-          <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-            Found <span style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{totalCount}</span> fresher opportunities{' '}
-            <span style={{ fontWeight: 400, color: 'var(--text-subtle)', marginLeft: '6px' }}>
-              (Showing {startResultIdx}–{endResultIdx} of {totalCount})
-            </span>
-          </div>
-        ) : (
-          <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--color-warning)' }}>
-            No matching fresher opportunities found
-          </div>
-        )}
-      </div>
+      {/* Active Filter Tags Bar */}
+      <ActiveFilters
+        filters={filters}
+        searchQuery={searchQuery}
+        onRemoveFilter={handleRemoveFilter}
+        onClearAll={handleClearAllFilters}
+      />
 
-      {/* Jobs Grid */}
+      {/* Main Jobs Listing & State Container */}
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
-          {[1, 2, 3, 4, 5, 6].map((idx) => (
-            <div key={idx} className="jt-card" style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                <Skeleton width="52px" height="52px" borderRadius="var(--radius-md)" />
-                <div style={{ flex: 1 }}>
-                  <Skeleton width="70%" height="20px" style={{ marginBottom: '8px' }} />
-                  <Skeleton width="40%" height="16px" />
+        /* Skeleton Loading Cards Grid */
+        <div>
+          <JobResultCount total={0} loading={true} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 'var(--spacing-lg)' }}>
+            {[1, 2, 3, 4, 5, 6].map(idx => (
+              <Card key={idx} style={{ padding: 'var(--spacing-lg)' }}>
+                <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-surface-elevated)' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ width: '70%', height: '16px', backgroundColor: 'var(--color-surface-elevated)', borderRadius: 'var(--radius-sm)', marginBottom: '8px' }} />
+                    <div style={{ width: '40%', height: '12px', backgroundColor: 'var(--color-surface-elevated)', borderRadius: 'var(--radius-sm)' }} />
+                  </div>
                 </div>
-              </div>
-              <Skeleton width="100%" height="16px" style={{ marginBottom: '8px' }} />
-              <Skeleton width="90%" height="16px" style={{ marginBottom: '16px' }} />
-              <Skeleton width="100%" height="38px" borderRadius="var(--radius-md)" />
-            </div>
-          ))}
+                <div style={{ width: '100%', height: '14px', backgroundColor: 'var(--color-surface-elevated)', borderRadius: 'var(--radius-sm)', marginBottom: '12px' }} />
+                <div style={{ width: '80%', height: '14px', backgroundColor: 'var(--color-surface-elevated)', borderRadius: 'var(--radius-sm)' }} />
+              </Card>
+            ))}
+          </div>
         </div>
+      ) : error ? (
+        /* Error State with Real Retry */
+        <Card style={{ textAlign: 'center', padding: 'var(--spacing-2xl) var(--spacing-xl)', borderColor: '#fca5a5', backgroundColor: '#fee2e2' }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            backgroundColor: '#fecaca',
+            color: '#dc2626',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto var(--spacing-md)'
+          }}>
+            <AlertTriangle size={24} />
+          </div>
+          <h3 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700, marginBottom: 'var(--spacing-xs)', color: '#991b1b' }}>
+            We couldn't update the opportunities
+          </h3>
+          <p style={{ color: '#7f1d1d', fontSize: 'var(--font-size-sm)', maxWidth: '440px', margin: '0 auto var(--spacing-lg)' }}>
+            {error}
+          </p>
+          <Button variant="primary" style={{ background: 'var(--gradient-primary)', border: 'none' }} onClick={() => refetch()}>
+            Retry Request
+          </Button>
+        </Card>
       ) : jobs.length > 0 ? (
+        /* Real API Results View */
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-            {jobs.map((job) => (
-              <JobCard key={job.id} job={job} />
+          {/* Result Count Header */}
+          <JobResultCount
+            total={totalCount}
+            loading={false}
+            page={page}
+            pageCount={pageCount}
+            pageJobsCount={jobs.length}
+          />
+
+          {/* Job Card Grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: 'var(--spacing-lg)'
+          }}>
+            {jobs.map(job => (
+              <JobCard key={job.id} job={job} onViewDetails={handleViewDetails} />
             ))}
           </div>
 
-          {/* Pagination Footer */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginTop: '2rem' }}>
-            <Button
-              variant="secondary"
-              icon={ChevronLeft}
-              disabled={page <= 1}
-              onClick={handlePrevPage}
-            >
-              Previous
-            </Button>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-              Page {page}
-            </span>
-            <Button
-              variant="secondary"
-              icon={ChevronRight}
-              disabled={jobs.length < 20 && totalCount <= page * 20}
-              onClick={handleNextPage}
-            >
-              Next
-            </Button>
-          </div>
+          {/* Pagination Controls */}
+          <Pagination
+            page={page}
+            pageCount={pageCount}
+            onPageChange={handlePageChange}
+          />
         </>
       ) : (
-        /* Empty State */
-        <div className="jt-card empty-state" style={{ padding: '3rem 2rem', textAlign: 'center' }}>
-          <Briefcase className="empty-state-icon" style={{ margin: '0 auto 1rem', width: '48px', height: '48px', color: 'var(--text-subtle)' }} />
-          <h3 className="empty-state-title" style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>No Fresher Jobs Found</h3>
-          <p className="empty-state-desc" style={{ color: 'var(--text-muted)', fontSize: '0.9375rem', maxWidth: '480px', margin: '0 auto 1.5rem', lineHeight: '1.5' }}>
-            We couldn't find any job listings matching your search terms. Try clearing filters or searching for terms like <strong>React</strong>, <strong>Trainee</strong>, or <strong>Python</strong>.
-          </p>
-          <Button variant="secondary" onClick={handleResetFilters}>Reset All Filters</Button>
-        </div>
+        /* Polished Empty State */
+        <>
+          <JobResultCount total={0} loading={false} page={1} pageCount={1} pageJobsCount={0} />
+          <EmptyState
+            icon={Briefcase}
+            title="No IT opportunities match your search"
+            description="Try another keyword, location, or broader experience level filter to discover available roles."
+            actionText="Clear All Filters"
+            onAction={handleClearAllFilters}
+          />
+        </>
       )}
-    </div>
+    </Container>
   );
 };

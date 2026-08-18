@@ -1,311 +1,174 @@
-import axios from 'axios';
-import { mockJobsData } from '../data/mockJobs';
-
-// Jooble REST API Key provided by user
-const JOOBLE_API_KEY = '4a22d1de-9f18-4447-b4ba-be50f556e26d';
-const JOOBLE_API_URL = `https://jooble.org/api/${JOOBLE_API_KEY}`;
-
-// In-Memory Cache for all fetched / normalized jobs
-const JOBS_CACHE = new Map();
+import apiClient from './api';
+import { normalizeJob } from '../utils/normalizeJob';
 
 /**
- * Format raw date into human-readable relative posting date
+ * JobTrack IT Job Service
+ * Provider: Jobicy IT Jobs API v2 (https://jobicy.com/api/v2/remote-jobs)
+ *
+ * Supported Jobicy Geo Enums: 'anywhere', 'apac', 'emea', 'usa', 'uk', 'japan'
  */
-export function formatRelativePostedDate(rawDate) {
-  if (!rawDate) return 'Recently';
-
-  const posted = new Date(rawDate);
-  if (isNaN(posted.getTime())) return 'Recently';
-
-  const now = new Date();
-  const diffTime = Math.abs(now - posted);
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return '1 day ago';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 14) return '1 week ago';
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  
-  return 'Over a month ago';
-}
-
-/**
- * Detect whether a job is a Senior or Experienced role (MUST BE EXCLUDED from JobTrack)
- */
-export function isSeniorOrExperiencedRole(title = '', description = '', expLevel = '') {
-  const text = `${title} ${description} ${expLevel}`.toLowerCase();
-  
-  // Senior, Lead, Manager, or Experienced keywords (1-2 yrs, 2+ yrs, 3+ yrs, etc.)
-  const seniorKeywords = [
-    'senior', 'sr.', 'sr ', 'lead', 'principal', 'architect', 'staff', 'manager',
-    'director', 'head of', 'executive', 'vp ', 'vice president', '5+ years', '4+ years',
-    '3+ years', '2+ years', '3-5 years', '5-7 years', '7+ years', '1-2 years', '1-2 yrs'
-  ];
-
-  return seniorKeywords.some(kw => text.includes(kw));
-}
-
-/**
- * Normalization function to standard JobTrack schema from Jooble API or Mock Engine
- */
-export const normalizeJobData = (rawJob, index = 0) => {
-  const title = rawJob.title || rawJob.job_title || 'Software Developer (Fresher)';
-  const cleanSnippet = rawJob.snippet
-    ? rawJob.snippet.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
-    : (rawJob.description || 'Entry-level fresher position.');
-
-  // If role is Senior or Experienced, return null so it can be filtered out
-  if (isSeniorOrExperiencedRole(title, cleanSnippet, rawJob.experienceLevel || '')) {
-    return null;
-  }
-
-  // Extract skills from snippet / description text if rawJob is from Jooble
-  let extractedSkills = rawJob.skills || [];
-  if (extractedSkills.length === 0 && rawJob.snippet) {
-    const commonSkills = ['React', 'JavaScript', 'Python', 'Java', 'HTML', 'CSS', 'Node.js', 'SQL', 'Git', 'TypeScript', 'C++', 'Django', 'FastAPI', 'Spring Boot'];
-    const found = commonSkills.filter(skill =>
-      rawJob.snippet.toLowerCase().includes(skill.toLowerCase()) ||
-      (title && title.toLowerCase().includes(skill.toLowerCase()))
-    );
-    extractedSkills = found.length > 0 ? found : ['Software Development', 'Problem Solving'];
-  }
-
-  const company = rawJob.company || rawJob.employer_name || 'Verified Employer';
-  const rawSalary = rawJob.salary ? rawJob.salary.trim() : '';
-  const displaySalary = rawSalary && rawSalary.length > 2 ? rawSalary : 'Salary not disclosed';
-  const relativeDate = formatRelativePostedDate(rawJob.updated || rawJob.postedDate);
-
-  // Experience level display for freshers
-  let expDisplay = 'Fresher (0-1 yrs)';
-  if (title.toLowerCase().includes('intern') || cleanSnippet.toLowerCase().includes('intern')) {
-    expDisplay = 'Fresher (Internship)';
-  } else if (title.toLowerCase().includes('trainee') || cleanSnippet.toLowerCase().includes('trainee')) {
-    expDisplay = 'Fresher (Trainee)';
-  } else if (cleanSnippet.toLowerCase().includes('0 years') || cleanSnippet.toLowerCase().includes('fresher')) {
-    expDisplay = 'Fresher (0 years)';
-  }
-
-  const normalized = {
-    id: String(rawJob.id || rawJob.job_id || `job-${Date.now()}-${index}`),
-    title: title,
-    company: company,
-    companyLogo: rawJob.companyLogo || null,
-    location: rawJob.location || 'India',
-    workMode: rawJob.workMode || (cleanSnippet.toLowerCase().includes('remote') ? 'Remote' : 'Hybrid'),
-    jobType: rawJob.type || rawJob.jobType || 'Full-time',
-    experienceLevel: expDisplay,
-    salary: displaySalary,
-    postedDate: relativeDate,
-    rawPostedDate: rawJob.updated || rawJob.postedDate || new Date().toISOString(),
-    description: cleanSnippet,
-    skills: extractedSkills,
-    requirements: rawJob.requirements || [
-      'Graduation in Computer Science, IT, MCA, or relevant engineering branch.',
-      'Basic understanding of programming fundamentals and web technologies.',
-      'Strong problem-solving mindset and eagerness to learn.'
-    ],
-    benefits: rawJob.benefits || ['Mentorship Program', 'Health Cover', 'Career Growth'],
-    isFresherFriendly: true, // 100% of jobs on JobTrack are strictly fresher friendly
-    applyUrl: rawJob.link || rawJob.applyUrl || 'https://jooble.org',
-    source: rawJob.source || 'Jooble'
-  };
-
-  // Cache normalized job
-  JOBS_CACHE.set(normalized.id, normalized);
-  return normalized;
-};
-
-/**
- * Cache manually registered jobs into memory
- */
-export function cacheJobInService(job) {
-  if (job && job.id) {
-    JOBS_CACHE.set(String(job.id), job);
-  }
-}
-
-/**
- * Unique job deduplication helper
- */
-function deduplicateJobs(jobsList) {
-  const seen = new Set();
-  return jobsList.filter(job => {
-    if (!job) return false;
-    const key = `${job.company.toLowerCase().trim()}_${job.title.toLowerCase().trim()}_${job.location.toLowerCase().trim()}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-/**
- * Centralized Filter Application Engine
- */
-export function applyJobFilters(jobsList, { experience, jobType, workMode, sortBy }) {
-  let filtered = jobsList.filter(Boolean);
-
-  // 1. Filter by Experience Level
-  if (experience && experience !== 'all') {
-    const exp = experience.toLowerCase();
-    filtered = filtered.filter(j => {
-      const expLevel = (j.experienceLevel || '').toLowerCase();
-      if (exp === 'fresher') {
-        return expLevel.includes('0 years') || expLevel.includes('0-1');
-      }
-      if (exp === 'trainee') {
-        return expLevel.includes('trainee') || (j.jobType || '').toLowerCase().includes('trainee');
-      }
-      if (exp === 'intern') {
-        return expLevel.includes('intern') || (j.jobType || '').toLowerCase().includes('intern');
-      }
-      return true;
-    });
-  }
-
-  // 2. Filter by Job Type
-  if (jobType && jobType !== 'all') {
-    const jt = jobType.toLowerCase();
-    filtered = filtered.filter(j => (j.jobType || '').toLowerCase().includes(jt));
-  }
-
-  // 3. Filter by Work Mode
-  if (workMode && workMode !== 'all') {
-    const wm = workMode.toLowerCase();
-    filtered = filtered.filter(j => (j.workMode || '').toLowerCase().includes(wm));
-  }
-
-  // 4. Sort
-  if (sortBy === 'newest') {
-    filtered.sort((a, b) => new Date(b.rawPostedDate || 0) - new Date(a.rawPostedDate || 0));
-  }
-
-  return filtered;
-}
-
-/**
- * Fetch Jobs Service Layer using Jooble REST API with Mock Engine Backup
- */
-export const fetchJobs = async ({
-  query = '',
+export async function getJobs({
+  page = 1,
+  level = 'Entry Level',
+  category = '',
   location = '',
-  experience = 'all',
-  jobType = 'all',
-  workMode = 'all',
-  sortBy = 'newest',
-  page = 1
-} = {}) => {
-  // Query Jooble strictly for entry-level fresher roles
-  let searchKeywords = 'fresher entry level trainee intern software developer';
-  if (query.trim()) {
-    searchKeywords = `${query.trim()} fresher entry level`;
-  }
-
-  const searchLocation = location && location !== 'all' ? location : 'India';
-
+  company = '',
+  search = ''
+} = {}) {
   try {
-    // Make POST request to Jooble API
-    const response = await axios.post(JOOBLE_API_URL, {
-      keywords: searchKeywords,
-      location: searchLocation,
-      page: page
-    }, {
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      timeout: 5000
-    });
+    const params = {
+      count: 50 // Fetch maximum available IT job pool
+    };
 
-    if (response.data && response.data.jobs && response.data.jobs.length > 0) {
-      let rawJoobleJobs = response.data.jobs
-        .map((job, idx) => normalizeJobData(job, idx))
-        .filter(Boolean); // Filters out any senior/experienced roles
-
-      let deduplicated = deduplicateJobs(rawJoobleJobs);
-
-      // Populate Cache
-      deduplicated.forEach(j => JOBS_CACHE.set(j.id, j));
-
-      // Apply Filter Pipeline
-      let joobleJobs = applyJobFilters(deduplicated, { experience, jobType, workMode, sortBy });
-
-      return {
-        jobs: joobleJobs,
-        total: joobleJobs.length,
-        page,
-        source: 'Jooble REST API'
-      };
+    // Category / Stream mapping to valid Jobicy industry enum
+    if (category && category !== 'all' && category.trim()) {
+      const catLower = category.toLowerCase().trim();
+      if (catLower.includes('data')) params.industry = 'data-science';
+      else if (catLower.includes('qa') || catLower.includes('testing')) params.industry = 'qa';
+      else if (catLower.includes('devops') || catLower.includes('cloud')) params.industry = 'devops';
+      else if (catLower.includes('design') || catLower.includes('ux')) params.industry = 'supporting';
+      else params.industry = 'engineering';
     }
-  } catch (error) {
-    console.warn('Jooble API call offline/limit, using local dataset engine:', error.message);
-  }
 
-  // Resilient Local Engine Filter Pipeline
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      let rawList = mockJobsData
-        .map((j, idx) => normalizeJobData(j, idx))
-        .filter(Boolean);
+    // Location mapping to VALID Jobicy geo enum ('anywhere', 'apac', 'usa', 'uk', 'emea', 'japan')
+    // Prevents HTTP 400 errors from sending invalid geo enum strings
+    if (location && location !== 'all' && location.trim()) {
+      const locLower = location.toLowerCase().trim();
+      if (locLower.includes('india') || locLower.includes('apac') || locLower.includes('asia') || locLower.includes('hyderabad') || locLower.includes('bangalore') || locLower.includes('chennai') || locLower.includes('pune') || locLower.includes('mumbai')) {
+        params.geo = 'apac';
+      } else if (locLower.includes('usa') || locLower.includes('us') || locLower.includes('america')) {
+        params.geo = 'usa';
+      } else if (locLower.includes('uk') || locLower.includes('britain') || locLower.includes('london')) {
+        params.geo = 'uk';
+      } else if (locLower.includes('japan') || locLower.includes('tokyo')) {
+        params.geo = 'japan';
+      } else if (locLower.includes('europe') || locLower.includes('emea')) {
+        params.geo = 'emea';
+      }
+    }
 
-      let filtered = deduplicateJobs(rawList);
+    // Keyword mapping to Jobicy tag parameter
+    if (search && search.trim()) {
+      const tagQuery = search.toLowerCase().trim();
+      if (['python', 'react', 'java', 'javascript', 'node', 'c++', 'sql', 'devops', 'qa'].includes(tagQuery)) {
+        params.tag = tagQuery;
+      }
+    }
 
-      // Populate Cache
-      filtered.forEach(j => JOBS_CACHE.set(j.id, j));
+    const response = await apiClient.get('/remote-jobs', { params });
 
-      if (query.trim()) {
-        const q = query.toLowerCase().trim();
-        filtered = filtered.filter(j =>
+    if (response.data && response.data.jobs) {
+      const rawJobs = response.data.jobs || [];
+
+      // 1. Base Query Normalization: Only active, published jobs
+      let normalizedJobs = rawJobs.map(normalizeJob).filter(Boolean);
+
+      // 2. Consistent Filter Conditions: Search Keyword
+      if (search && search.trim()) {
+        const q = search.toLowerCase().trim();
+        normalizedJobs = normalizedJobs.filter(j =>
           j.title.toLowerCase().includes(q) ||
           j.company.toLowerCase().includes(q) ||
-          j.skills.some(s => s.toLowerCase().includes(q)) ||
-          j.description.toLowerCase().includes(q)
+          j.category.toLowerCase().includes(q) ||
+          j.location.toLowerCase().includes(q) ||
+          j.skills.some(s => s.toLowerCase().includes(q))
         );
       }
 
-      if (location.trim() && location !== 'all') {
-        const loc = location.toLowerCase().trim();
-        filtered = filtered.filter(j => j.location.toLowerCase().includes(loc));
+      // 3. Consistent Filter Conditions: Stream / Category Subsetting
+      if (category && category !== 'all' && category.trim()) {
+        const catQuery = category.toLowerCase().trim();
+        normalizedJobs = normalizedJobs.filter(job => {
+          const jobCat = job.category.toLowerCase();
+          if (catQuery.includes('data')) return jobCat.includes('data') || jobCat.includes('analytics');
+          if (catQuery.includes('qa') || catQuery.includes('testing')) return jobCat.includes('qa') || jobCat.includes('testing') || jobCat.includes('test');
+          if (catQuery.includes('ux') || catQuery.includes('design')) return jobCat.includes('ux') || jobCat.includes('design');
+          if (catQuery.includes('devops') || catQuery.includes('cloud')) return jobCat.includes('devops') || jobCat.includes('cloud') || jobCat.includes('sys');
+          return jobCat.includes('software') || jobCat.includes('engineering') || jobCat.includes('dev');
+        });
       }
 
-      // Apply Filter Pipeline
-      filtered = applyJobFilters(filtered, { experience, jobType, workMode, sortBy });
+      // 4. Consistent Filter Conditions: Experience Level Subsetting
+      if (level && level !== 'all') {
+        if (level === 'Entry Level' || level === 'Internship') {
+          const fresherFiltered = normalizedJobs.filter(job =>
+            job.experienceLevel === 'Entry Level' ||
+            /entry|junior|fresher|trainee|intern|associate|software/i.test(job.title)
+          );
+          if (fresherFiltered.length > 0) {
+            normalizedJobs = fresherFiltered;
+          }
+        } else if (level === 'Senior Level') {
+          normalizedJobs = normalizedJobs.filter(job => job.experienceLevel === 'Senior Level');
+        }
+      }
 
-      resolve({
-        jobs: filtered,
-        total: filtered.length,
-        page,
-        source: 'JobTrack Engine'
-      });
-    }, 250);
-  });
-};
+      // 5. Consistent Filter Conditions: Location Subsetting
+      if (location && location !== 'all' && location.trim()) {
+        const locQuery = location.toLowerCase().trim();
+        const locFiltered = normalizedJobs.filter(job => job.location.toLowerCase().includes(locQuery));
+        if (locFiltered.length > 0) {
+          normalizedJobs = locFiltered;
+        }
+      }
+
+      // 6. Consistent Filter Conditions: Company Subsetting
+      if (company && company.trim()) {
+        const compQuery = company.toLowerCase().trim();
+        normalizedJobs = normalizedJobs.filter(job => job.company.toLowerCase().includes(compQuery));
+      }
+
+      // Exact total matching jobs count for current filter combination
+      const totalMatchingCount = normalizedJobs.length;
+
+      // Pagination calculation
+      const perPage = 12;
+      const pageCount = Math.max(1, Math.ceil(totalMatchingCount / perPage));
+      const currentPage = Math.min(Math.max(1, parseInt(page, 10) || 1), pageCount);
+      const paginatedJobs = normalizedJobs.slice((currentPage - 1) * perPage, currentPage * perPage);
+
+      return {
+        jobs: paginatedJobs,
+        total: totalMatchingCount,
+        page: currentPage,
+        pageCount,
+        totalPages: pageCount,
+        source: 'Jobicy IT Jobs API',
+        error: null
+      };
+    }
+
+    return { jobs: [], total: 0, page: 1, pageCount: 1, totalPages: 1, source: 'Jobicy IT Jobs API', error: null };
+
+  } catch (error) {
+    let errorMessage = 'Unable to load IT job opportunities right now.';
+    if (error.response) {
+      errorMessage = `Job Service returned HTTP ${error.response.status}. Please try again later.`;
+    } else if (error.request) {
+      errorMessage = 'Network problem. Unable to connect to the IT Job Service.';
+    }
+
+    return { jobs: [], total: 0, page: 1, pageCount: 1, totalPages: 1, source: 'Jobicy IT Jobs API', error: errorMessage };
+  }
+}
 
 /**
- * Fetch Job By ID Service Layer - Checks in-memory cache first before falling back
+ * Fetch Job Details by ID from Jobicy IT Jobs API v2
  */
-export const fetchJobById = async (id) => {
-  const targetId = String(id);
+export async function getJobById(id) {
+  if (!id) return null;
 
-  // 1. Check in-memory cache
-  if (JOBS_CACHE.has(targetId)) {
-    return JOBS_CACHE.get(targetId);
-  }
-
-  // 2. Check mock dataset
-  const foundMock = mockJobsData.find(j => String(j.id) === targetId);
-  if (foundMock) {
-    const normalized = normalizeJobData(foundMock);
-    if (normalized) {
-      JOBS_CACHE.set(targetId, normalized);
-      return normalized;
+  try {
+    const response = await apiClient.get('/remote-jobs', { params: { count: 50 } });
+    if (response.data && response.data.jobs) {
+      const rawJob = response.data.jobs.find(j => String(j.id) === String(id));
+      if (rawJob) {
+        return normalizeJob(rawJob);
+      }
     }
+    return null;
+  } catch (error) {
+    console.error('Error fetching IT job details:', error.message);
+    return null;
   }
-
-  // 3. Fallback to first available cached job or first normalized mock job
-  for (const job of JOBS_CACHE.values()) {
-    if (job) return job;
-  }
-
-  const fallback = normalizeJobData(mockJobsData[0]);
-  return fallback;
-};
+}
