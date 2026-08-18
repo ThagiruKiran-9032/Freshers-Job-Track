@@ -1,24 +1,23 @@
-import React, { useState, useRef } from 'react';
-import { Upload, FileText, ShieldCheck, AlertCircle, RefreshCw } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Card } from '../common/Card';
 import { Button } from '../common/Button';
+import { Upload, FileText, X, AlertTriangle, ShieldCheck, Sparkles } from 'lucide-react';
 
-export const ResumeUploader = ({ onFileSelect, errorMessage, onRetry }) => {
-  const [isDragOver, setIsDragOver] = useState(false);
+export const ResumeUploader = ({
+  file,
+  error,
+  onFileSelect,
+  onProcess,
+  onReset
+}) => {
   const fileInputRef = useRef(null);
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       onFileSelect(e.dataTransfer.files[0]);
     }
@@ -31,119 +30,103 @@ export const ResumeUploader = ({ onFileSelect, errorMessage, onRetry }) => {
   };
 
   return (
-    <div className="jt-card" style={{ padding: '2rem', textAlign: 'center' }}>
-      {/* Dropzone Container */}
-      <div
+    <div style={{ marginBottom: 'var(--spacing-xl)' }}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        onChange={handleInputChange}
+        style={{ display: 'none' }}
+      />
+
+      {/* Drag & Drop Zone */}
+      <Card
         onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
         style={{
-          border: isDragOver ? '2px dashed var(--color-primary)' : '2px dashed var(--border-color)',
-          backgroundColor: isDragOver ? 'var(--color-primary-light)' : 'var(--bg-surface-elevated)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '3rem 1.5rem',
+          padding: 'var(--spacing-2xl) var(--spacing-xl)',
+          textAlign: 'center',
+          border: '2px dashed var(--color-primary)',
+          background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.04) 0%, rgba(124, 58, 237, 0.06) 100%)',
           cursor: 'pointer',
-          transition: 'all 0.2s ease',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '1rem'
+          borderRadius: 'var(--radius-xl)'
         }}
       >
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleInputChange}
-          accept=".pdf,application/pdf"
-          style={{ display: 'none' }}
-        />
-
         <div style={{
-          width: '64px',
-          height: '64px',
+          width: '72px',
+          height: '72px',
           borderRadius: '50%',
-          backgroundColor: 'var(--color-primary-light)',
-          color: 'var(--color-primary)',
+          background: 'var(--gradient-primary)',
+          color: '#ffffff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          margin: '0 auto var(--spacing-md)',
           boxShadow: 'var(--shadow-glow)'
         }}>
-          <Upload size={30} />
+          <Upload size={32} />
         </div>
 
-        <div>
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '0.375rem' }}>
-            Drag & Drop your Resume PDF here
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            or click to browse your computer
-          </p>
-        </div>
+        <h3 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800, marginBottom: 'var(--spacing-xs)' }}>
+          Upload your resume file
+        </h3>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-            <FileText size={14} /> PDF format only
-          </span>
-          <span>•</span>
-          <span>Max 5 MB file size</span>
-        </div>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 'var(--spacing-lg)' }}>
+          Drag & drop your PDF or DOCX file here, or click to browse (Max size: 5MB)
+        </p>
 
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            fileInputRef.current?.click();
-          }}
-        >
-          Browse Resume File
-        </Button>
-      </div>
-
-      {/* Error Message Display */}
-      {errorMessage && (
-        <div style={{
-          marginTop: '1.25rem',
-          padding: '0.875rem 1rem',
-          backgroundColor: 'var(--color-danger-bg)',
-          color: 'var(--color-danger)',
-          borderRadius: 'var(--radius-md)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '0.875rem'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <AlertCircle size={18} />
-            <span>{errorMessage}</span>
+        {file ? (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 'var(--spacing-md)',
+            padding: 'var(--spacing-sm) var(--spacing-md)',
+            backgroundColor: '#ffffff',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-primary)',
+            boxShadow: 'var(--shadow-sm)',
+            marginBottom: 'var(--spacing-lg)'
+          }}>
+            <FileText size={22} style={{ color: 'var(--color-primary)' }} />
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-text)' }}>{file.name}</div>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-subtle)' }}>
+                {(file.size / (1024 * 1024)).toFixed(2)} MB
+              </div>
+            </div>
+            <button onClick={onReset} style={{ color: 'var(--color-text-subtle)', marginLeft: 'var(--spacing-sm)', cursor: 'pointer' }}>
+              <X size={18} />
+            </button>
           </div>
-          {onRetry && (
-            <Button variant="secondary" size="sm" icon={RefreshCw} onClick={onRetry}>
-              Retry
+        ) : (
+          <Button variant="primary" icon={FileText} style={{ background: 'var(--gradient-primary)', border: 'none' }} onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+            Browse Resume File
+          </Button>
+        )}
+
+        {file && (
+          <div style={{ marginTop: 'var(--spacing-md)' }}>
+            <Button variant="primary" size="lg" icon={Sparkles} style={{ background: 'var(--gradient-primary)', border: 'none', boxShadow: 'var(--shadow-glow)' }} onClick={onProcess}>
+              Extract Candidate Profile
             </Button>
-          )}
-        </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Error Alert */}
+      {error && (
+        <Card style={{ marginTop: 'var(--spacing-md)', padding: 'var(--spacing-md)', borderColor: '#fca5a5', backgroundColor: '#fee2e2' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', color: '#b91c1c' }}>
+            <AlertTriangle size={20} />
+            <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>{error}</span>
+          </div>
+        </Card>
       )}
 
-      {/* Privacy Guarantee Statement */}
-      <div style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        marginTop: '1.5rem',
-        padding: '0.5rem 1rem',
-        backgroundColor: 'var(--color-success-bg)',
-        color: 'var(--color-success)',
-        borderRadius: 'var(--radius-full)',
-        fontSize: '0.75rem',
-        fontWeight: 600
-      }}>
-        <ShieldCheck size={16} />
-        <span>Your resume is processed 100% locally in your browser and is not uploaded to any server.</span>
+      {/* Privacy Notice */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', marginTop: 'var(--spacing-md)', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-subtle)', fontWeight: 500 }}>
+        <ShieldCheck size={16} style={{ color: 'var(--color-success)' }} />
+        <span>Your resume is processed 100% locally in your browser. Structured profile data is stored on this device.</span>
       </div>
     </div>
   );

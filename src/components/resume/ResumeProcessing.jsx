@@ -1,75 +1,56 @@
 import React from 'react';
-import { CheckCircle2, Loader2, FileSearch, Cpu, Sparkles } from 'lucide-react';
 import { Card } from '../common/Card';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 
-export const ResumeProcessing = ({ currentStep = 0 }) => {
-  const steps = [
-    { title: 'Reading PDF document', desc: 'Parsing binary stream with PDF.js' },
-    { title: 'Extracting page text & metadata', desc: 'Preserving text flow & content items' },
-    { title: 'Segmenting sections & skills taxonomy', desc: 'Identifying education, skills, and projects' },
-    { title: 'Building structured fresher profile', desc: 'Generating match metrics & confidence ratings' }
+export const ResumeProcessing = ({ stage = 'reading' }) => {
+  const stages = [
+    { id: 'reading', label: 'Reading resume file' },
+    { id: 'extracting', label: 'Extracting text content' },
+    { id: 'parsing', label: 'Detecting sections & collecting skills' },
+    { id: 'completed', label: 'Building candidate profile' }
   ];
 
-  return (
-    <Card glass style={{ padding: '2.5rem', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
-      <div style={{
-        width: '64px',
-        height: '64px',
-        borderRadius: '50%',
-        backgroundColor: 'var(--color-primary-light)',
-        color: 'var(--color-primary)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        margin: '0 auto 1.5rem',
-        animation: 'spin 2s linear infinite'
-      }}>
-        <Cpu size={32} />
-      </div>
+  const getStageStatus = (stageId) => {
+    const stageOrder = ['reading', 'extracting', 'parsing', 'completed'];
+    const currentIndex = stageOrder.indexOf(stage);
+    const itemIndex = stageOrder.indexOf(stageId);
 
-      <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Analyzing Your Resume...</h2>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>
-        JobTrack is extracting your skills, education, and projects to automatically build your candidate profile.
+    if (itemIndex < currentIndex) return 'completed';
+    if (itemIndex === currentIndex) return 'active';
+    return 'pending';
+  };
+
+  return (
+    <Card style={{ padding: 'var(--spacing-2xl) var(--spacing-xl)', textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>
+      <h3 style={{ fontSize: 'var(--font-size-xl)', marginBottom: 'var(--spacing-md)' }}>
+        Analyzing Resume Content...
+      </h3>
+      <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--spacing-xl)' }}>
+        Processing PDF/DOCX file locally in your browser
       </p>
 
-      {/* Steps List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
-        {steps.map((step, idx) => {
-          const isDone = idx < currentStep;
-          const isCurrent = idx === currentStep;
-
+      <div style={{ maxWidth: '420px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+        {stages.map((st) => {
+          const status = getStageStatus(st.id);
           return (
             <div
-              key={idx}
+              key={st.id}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '1rem',
-                padding: '0.875rem 1.25rem',
-                backgroundColor: isCurrent ? 'var(--color-primary-light)' : 'var(--bg-surface-elevated)',
-                border: isCurrent ? '1px solid var(--color-primary)' : '1px solid var(--border-color)',
+                justifyContent: 'space-between',
+                padding: 'var(--spacing-sm) var(--spacing-md)',
+                backgroundColor: status === 'active' ? 'var(--color-primary-light)' : 'var(--color-surface-elevated)',
                 borderRadius: 'var(--radius-md)',
-                transition: 'all 0.2s ease'
+                border: '1px solid',
+                borderColor: status === 'active' ? 'var(--color-primary)' : 'var(--color-border)'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {isDone ? (
-                  <CheckCircle2 size={20} style={{ color: 'var(--color-success)' }} />
-                ) : isCurrent ? (
-                  <Loader2 size={20} style={{ color: 'var(--color-primary)', animation: 'spin 1s linear infinite' }} />
-                ) : (
-                  <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid var(--text-subtle)' }} />
-                )}
-              </div>
-
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: isCurrent ? 'var(--color-primary)' : 'var(--text-main)' }}>
-                  {step.title}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
-                  {step.desc}
-                </div>
-              </div>
+              <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: status === 'active' ? 700 : 500 }}>
+                {st.label}
+              </span>
+              {status === 'completed' && <CheckCircle2 size={18} style={{ color: 'var(--color-success)' }} />}
+              {status === 'active' && <Loader2 size={18} style={{ color: 'var(--color-primary)', animation: 'spin 1s linear infinite' }} />}
             </div>
           );
         })}

@@ -1,138 +1,236 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Sun, Moon, Menu, Bell, UserCheck, LogOut, User } from 'lucide-react';
-import { Button } from '../common/Button';
-import { useAuth } from '../../hooks/useAuth';
+import React, { useState, useRef, useEffect } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { Logo } from '../common/Logo';
+import { useSavedJobs } from '../../context/SavedJobsContext';
+import { useAuth } from '../../context/AuthContext';
+import {
+  Menu, X, User, Bookmark, FileText, LogOut, LogIn, UserPlus, ChevronDown
+} from 'lucide-react';
 
-export const Navbar = ({ onMobileToggle }) => {
+/**
+ * Generate user initials from full name dynamically (e.g. John Doe -> JD)
+ */
+export function getUserInitials(name) {
+  if (!name || typeof name !== 'string') return 'U';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+export const Navbar = () => {
   const navigate = useNavigate();
-  const { currentUser, logout } = useAuth();
-  const [theme, setTheme] = useState(() => localStorage.getItem('jt_theme') || 'dark');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  const dropdownRef = useRef(null);
+
+  const { savedJobs } = useSavedJobs();
+  const { user, isAuthenticated, logout } = useAuth();
+  const savedCount = savedJobs ? savedJobs.length : 0;
+
+  // Close dropdown on outside click
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('jt_theme', theme);
-  }, [theme]);
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-  };
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/jobs?q=${encodeURIComponent(searchQuery.trim())}`);
-    }
+  const toggleMobileMenu = () => setMobileOpen(prev => !prev);
+  const closeMobileMenu = () => {
+    setMobileOpen(false);
+    setDropdownOpen(false);
   };
 
   const handleLogout = () => {
     logout();
-    navigate('/login', { replace: true });
+    closeMobileMenu();
+    setDropdownOpen(false);
+    navigate('/login');
   };
 
+  const initials = user ? getUserInitials(user.name) : 'U';
+
   return (
-    <header style={{
-      height: '70px',
-      backgroundColor: 'var(--glass-bg)',
-      backdropFilter: 'var(--glass-backdrop)',
-      borderBottom: '1px solid var(--border-color)',
-      position: 'sticky',
-      top: 0,
-      zIndex: 80,
-      padding: '0 1.5rem',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '1rem'
-    }}>
-      {/* Left side: Mobile hamburger & Global quick search */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, maxWidth: '480px' }}>
+    <header className="navbar">
+      <div className="navbar-container">
+        {/* Brand Logo */}
+        <Logo onClick={closeMobileMenu} />
+
+        {/* Mobile Menu Toggle Button */}
         <button
-          onClick={onMobileToggle}
-          className="btn btn-secondary btn-icon mobile-only"
-          style={{ display: 'none' }}
-          aria-label="Toggle Navigation Menu"
+          className="nav-toggle"
+          onClick={toggleMobileMenu}
+          aria-label="Toggle navigation menu"
         >
-          <Menu size={20} />
+          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
-        <form onSubmit={handleSearchSubmit} style={{ width: '100%' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)' }} />
-            <input
-              type="text"
-              placeholder="Search fresher jobs by title, skill, or location..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input"
-              style={{ paddingLeft: '40px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--bg-surface-elevated)' }}
-            />
-          </div>
-        </form>
-      </div>
+        {/* Navigation Bar Links & Controls */}
+        <nav>
+          <ul className={`nav-links ${mobileOpen ? 'mobile-open' : ''}`}>
+            <li>
+              <NavLink
+                to="/"
+                onClick={closeMobileMenu}
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                end
+              >
+                Home
+              </NavLink>
+            </li>
 
-      {/* Right side: User pill, notifications, theme & logout */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-        {/* User Account Quick Pill */}
-        <div
-          onClick={() => navigate('/profile')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.375rem 0.75rem',
-            backgroundColor: 'var(--color-primary-light)',
-            color: 'var(--color-primary)',
-            borderRadius: 'var(--radius-full)',
-            fontSize: '0.8125rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            border: '1px solid rgba(99, 102, 241, 0.2)'
-          }}
-          title="Click to view & update your Fresher Profile"
-        >
-          <User size={16} />
-          <span>{currentUser?.name || 'My Profile'}</span>
-        </div>
+            {isAuthenticated && (
+              <>
+                <li>
+                  <NavLink
+                    to="/jobs"
+                    onClick={closeMobileMenu}
+                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                  >
+                    Jobs
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/saved-jobs"
+                    onClick={closeMobileMenu}
+                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                  >
+                    Saved Jobs
+                    {savedCount > 0 && (
+                      <span style={{
+                        marginLeft: '6px',
+                        padding: '2px 8px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        borderRadius: 'var(--radius-full)',
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        color: '#ffffff',
+                        boxShadow: '0 2px 6px rgba(245, 158, 11, 0.4)'
+                      }}>
+                        {savedCount}
+                      </span>
+                    )}
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/resume"
+                    onClick={closeMobileMenu}
+                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                  >
+                    Resume
+                  </NavLink>
+                </li>
+              </>
+            )}
 
-        {/* Notifications Icon */}
-        <button
-          className="btn btn-secondary btn-icon"
-          style={{ borderRadius: 'var(--radius-full)', position: 'relative' }}
-          title="Notifications"
-        >
-          <Bell size={18} />
-          <span style={{
-            position: 'absolute',
-            top: '6px',
-            right: '6px',
-            width: '8px',
-            height: '8px',
-            backgroundColor: 'var(--color-primary)',
-            borderRadius: '50%'
-          }} />
-        </button>
+            {/* Auth Controls & Dynamic Initials Circular Avatar Pill */}
+            {isAuthenticated ? (
+              <li style={{ position: 'relative' }} ref={dropdownRef}>
+                <div
+                  className="nav-avatar-pill"
+                  onClick={() => setDropdownOpen(prev => !prev)}
+                >
+                  <div className="avatar-circle">
+                    {initials}
+                  </div>
+                  <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-text)' }}>
+                    {user && user.name ? user.name.split(' ')[0] : 'User'}
+                  </span>
+                  <ChevronDown size={14} style={{ color: 'var(--color-text-muted)', transition: 'transform 0.2s', transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                </div>
 
-        {/* Theme Toggle */}
-        <button
-          onClick={toggleTheme}
-          className="btn btn-secondary btn-icon"
-          style={{ borderRadius: 'var(--radius-full)' }}
-          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-        >
-          {theme === 'dark' ? <Sun size={18} style={{ color: 'var(--color-warning)' }} /> : <Moon size={18} style={{ color: 'var(--color-primary)' }} />}
-        </button>
+                {/* Avatar User Dropdown Menu */}
+                {dropdownOpen && (
+                  <div className="nav-dropdown-menu">
+                    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--color-border)', marginBottom: '4px' }}>
+                      <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 800, color: 'var(--color-text)' }}>{user.name}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{user.email}</div>
+                    </div>
 
-        {/* Logout Button */}
-        <button
-          onClick={handleLogout}
-          className="btn btn-secondary btn-icon"
-          style={{ borderRadius: 'var(--radius-full)', color: 'var(--color-danger)' }}
-          title="Sign Out of JobTrack"
-        >
-          <LogOut size={18} />
-        </button>
+                    <NavLink
+                      to="/profile"
+                      onClick={closeMobileMenu}
+                      className="nav-dropdown-item"
+                    >
+                      <User size={15} style={{ color: 'var(--color-primary)' }} />
+                      <span>My Candidate Profile</span>
+                    </NavLink>
+
+                    <NavLink
+                      to="/saved-jobs"
+                      onClick={closeMobileMenu}
+                      className="nav-dropdown-item"
+                    >
+                      <Bookmark size={15} style={{ color: 'var(--color-info)' }} />
+                      <span>Saved Opportunities</span>
+                    </NavLink>
+
+                    <NavLink
+                      to="/resume"
+                      onClick={closeMobileMenu}
+                      className="nav-dropdown-item"
+                    >
+                      <FileText size={15} style={{ color: 'var(--color-success)' }} />
+                      <span>Resume Builder</span>
+                    </NavLink>
+
+                    <button
+                      onClick={handleLogout}
+                      className="nav-dropdown-item"
+                      style={{ color: '#dc2626', borderTop: '1px solid var(--color-border)', marginTop: '4px', paddingTop: '8px' }}
+                    >
+                      <LogOut size={15} />
+                      <span>Logout Account</span>
+                    </button>
+                  </div>
+                )}
+              </li>
+            ) : (
+              /* Unauthenticated Controls */
+              <>
+                <li>
+                  <NavLink
+                    to="/login"
+                    onClick={closeMobileMenu}
+                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <LogIn size={15} />
+                    Login
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/register"
+                    onClick={closeMobileMenu}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'var(--gradient-primary)',
+                      color: '#ffffff',
+                      padding: '8px 16px',
+                      borderRadius: 'var(--radius-full)',
+                      fontWeight: 700,
+                      fontSize: 'var(--font-size-xs)',
+                      boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)',
+                      textDecoration: 'none'
+                    }}
+                  >
+                    <UserPlus size={15} />
+                    Register
+                  </NavLink>
+                </li>
+              </>
+            )}
+          </ul>
+        </nav>
       </div>
     </header>
   );
